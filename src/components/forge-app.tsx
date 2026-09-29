@@ -90,7 +90,7 @@ export function ForgeApp() {
 
           <ViewerControls onResetCamera={handleResetCamera} />
 
-          {state.phase === "idle" ? (
+          {state.phase === "idle" && modelUrl === null ? (
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 text-center">
               <span className="rounded-full border border-hairline-strong px-3 py-1 font-mono text-[11px] text-faint">
                 viewport idle
