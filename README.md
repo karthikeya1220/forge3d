@@ -1,36 +1,87 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Forge3D
 
-## Getting Started
+**Text → real 3D model, in one prompt.** Forge3D turns a sentence into a textured, downloadable GLB you can spin around in the browser immediately — built with Next.js 16, React Three Fiber, and the Tripo v3 3D generation API.
 
-First, run the development server:
+## Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- **Prompt → 3D in one click** — async generation with submit/poll/stream; no long-lived requests, works on mobile
+- **Interactive WebGL viewer** — rotate, zoom, pan, reset-to-fit camera, studio lighting, contact shadows
+- **Auto-normalization** — every model is bounding-box centered, grounded, and scaled to fit the scene (no tiny/huge surprises)
+- **Download** — one click saves `forge3d-<prompt-slug>.glb`
+- **Honest status** — indeterminate spinner while generating (the provider reports no real percentage), friendly error messages with retry
+- **Responsive** — desktop split view, stacked mobile layout
+- **Session-only** — no account, no database; the model lives in your tab
+
+## Architecture
+
+```
+Browser (prompt form, state machine, download)
+   │  POST /api/generate {prompt}
+   ▼
+Next.js Route Handler ── validates ──► provider abstraction (src/lib/3d-generation)
+   │  { success, taskId, format:"glb" }       │  TextTo3DProvider: createGeneration /
+   │  GET /api/generate/[taskId]  (poll 2s)   │  getStatus / streamModel
+   │   → { status:"generating" }              ▼
+   │   → on success: streams GLB bytes      Tripo v3 REST (server-side only, TRIPO_API_KEY)
+   ▼
+Client: bytes → object URL → R3F viewer + download (blob)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Key decisions (full rationale + measurements in [`docs/provider-decision.md`](docs/provider-decision.md)):
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **Server-side streaming** for GLB delivery — Tripo's output URLs expire in ~5 minutes and may not allow cross-origin reads, so the status route fetches the model the moment it's ready and streams it to the browser. Streaming also bypasses Vercel's 4.5 MB response-body cap.
+- **Provider abstraction** — `src/lib/3d-generation/` exposes a small `TextTo3DProvider` interface; the frontend never sees provider wire formats, so a second provider slots in under `providers/` without UI changes.
+- **Secrets stay server-side** — `TRIPO_API_KEY` is read only in route handlers; never `NEXT_PUBLIC_*`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## AI model
 
-## Learn More
+- **Provider:** [Tripo](https://platform.tripo3d.ai) (v3 API, model `v3.1`) — chosen for being the only provider offering real text→textured-GLB generation **for free without a credit card**, via a server-side async REST API that deploys cleanly to Vercel.
+- **Input:** an English text prompt (≤ 500 characters). **Output:** a single GLB file (mesh + textures, PBR-ready).
+- **Flow:** create task → poll status → fetch result. Typical wall time is ~10–120 seconds depending on queue load and settings (`face_limit` tuned to ~60k faces for web-sized assets).
+- **Free tier:** creating your first API key grants **~2,000 free credits** (no card) — roughly 100–200 generations at 10–20 credits each. After that, standard paid credit rates apply (see Tripo's pricing page).
+- Free-tier API access requires a signed-in account; Forge3D users need only the deployed app — the key is configured once by the operator.
 
-To learn more about Next.js, take a look at the following resources:
+## Local setup
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+git clone <repo-url> forge3d && cd forge3d
+npm install
+cp .env.example .env.local   # then paste your TRIPO_API_KEY
+npm run dev                  # http://localhost:3000
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Script | Purpose |
+|---|---|
+| `npm run dev` | dev server |
+| `npm run build` / `start` | production build / serve |
+| `npm run lint` | ESLint |
+| `npm test` | vitest suite (validation, filename, provider, API routes) |
 
-## Deploy on Vercel
+## Environment variables
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Name | Required | Where | Purpose |
+|---|---|---|---|
+| `TRIPO_API_KEY` | yes | server only | Tripo API bearer key ([create one](https://platform.tripo3d.ai)) |
+| `AI_PROVIDER` | no | server only | Provider key, defaults to `tripo` |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Deployment (Vercel)
+
+1. Push the repo to GitHub and import it at [vercel.com/new](https://vercel.com/new) (framework auto-detected: Next.js).
+2. Add env var `TRIPO_API_KEY` (Environment → Production & Preview).
+3. Deploy. No persistent workers, database, or config beyond the key.
+
+## Limitations
+
+- **Generation takes time** — typically 10–120 s; the loader is indeterminate because the provider doesn't expose real progress.
+- **Model quality varies** with prompt specificity — descriptive prompts ("low-poly, metal corners, stylized") beat one-word ones.
+- **GLB only** — no OBJ/USDZ export (GLB is the web-native choice; convert downstream if needed).
+- **Session-only results** — refreshing the page clears the model; no history or sharing (deliberately no database).
+- **Provider-side queue/rate limits** apply (HTTP 429 handled with a friendly message).
+- **Output URL expiry (~5 min)** is handled server-side — models stream through the app, not hot-linked.
+
+## Future improvements
+
+- Persist generations (accounts + storage) and a gallery of past models
+- PNG reference-image → 3D and texture-style options
+- Second provider behind the existing abstraction for redundancy
+- Share links, OBJ/USDZ export, higher-fidelity export tier
