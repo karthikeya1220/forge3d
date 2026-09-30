@@ -48,16 +48,17 @@ function mapHttpError(status: number, code: number | undefined, message?: string
       "Too many requests right now. Wait a moment and try again.",
     );
   }
+  // Tripo reports out-of-credits as HTTP 403 + code 2010 — must precede the generic 403 mapping.
+  if (code === 2010 || (code !== undefined && /credit|balance|insufficient/i.test(message ?? ""))) {
+    return new ProviderError(
+      "insufficient_credits",
+      "The generator is out of credits. Please try again later.",
+    );
+  }
   if (status === 401 || status === 403) {
     return new ProviderError(
       "unavailable",
       "3D generation is temporarily unavailable. Please try again later.",
-    );
-  }
-  if (code !== undefined && /credit|balance|insufficient/i.test(message ?? "")) {
-    return new ProviderError(
-      "insufficient_credits",
-      "The generator is out of credits. Please try again later.",
     );
   }
   return new ProviderError(

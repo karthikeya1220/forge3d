@@ -55,6 +55,24 @@ describe("tripoProvider.createGeneration", () => {
     expect((error as ProviderError).message).not.toMatch(/1007|stack|test-key/);
   });
 
+  it("maps out-of-credits (HTTP 403, code 2010) to insufficient_credits, not generic unavailable", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse(
+          { code: 2010, message: "You don't have enough credit to create this task" },
+          403,
+        ),
+      ),
+    );
+
+    const error = await tripoProvider.createGeneration("a cat").catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ProviderError);
+    expect((error as ProviderError).code).toBe("insufficient_credits");
+    expect((error as ProviderError).statusCode).toBe(402);
+    expect((error as ProviderError).message).toMatch(/out of credits/i);
+  });
+
   it("fails cleanly when the API key is missing", async () => {
     delete process.env.TRIPO_API_KEY;
     const error = await tripoProvider.createGeneration("a cat").catch((e: unknown) => e);
