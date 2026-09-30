@@ -65,9 +65,12 @@ npm run dev                  # http://localhost:3000
 
 ## Deployment (Vercel)
 
+**Live:** https://forge3d-ms15zm3vg-darshankarthik05-gmailcoms-projects.vercel.app
+
 1. Push the repo to GitHub and import it at [vercel.com/new](https://vercel.com/new) (framework auto-detected: Next.js).
 2. Add env var `TRIPO_API_KEY` (Environment → Production & Preview).
-3. Deploy. No persistent workers, database, or config beyond the key.
+3. **Settings → Deployment Protection → disable Vercel Authentication** (otherwise every visitor is bounced to a login wall).
+4. Deploy. No persistent workers, database, or config beyond the key.
 
 ## Limitations
 
