@@ -38,8 +38,7 @@ Key decisions (full rationale + measurements in [`docs/provider-decision.md`](do
 - **Provider:** [Tripo](https://platform.tripo3d.ai) (v3 API, model `v3.1`) — chosen for being the only provider offering real text→textured-GLB generation **for free without a credit card**, via a server-side async REST API that deploys cleanly to Vercel.
 - **Input:** an English text prompt (≤ 500 characters). **Output:** a single GLB file (mesh + textures, PBR-ready).
 - **Flow:** create task → poll status → fetch result. Typical wall time is ~10–120 seconds depending on queue load and settings (`face_limit` tuned to ~60k faces for web-sized assets).
-- **Free tier:** creating your first API key grants **~2,000 free credits** (no card) — roughly 100–200 generations at 10–20 credits each. After that, standard paid credit rates apply (see Tripo's pricing page).
-- Free-tier API access requires a signed-in account; Forge3D users need only the deployed app — the key is configured once by the operator.
+- **Free tier:** as of Sep 2026 there is **no automatic signup bonus** (verified live — new accounts start at 0 balance). Pricing is pay-as-you-go: `1 credit = $0.01`, a textured text→3D generation costs **20 credits ($0.20)**. Occasional free credits are given away via their Discord/social. The operator's key must hold credits for generation to work; without them the app degrades gracefully to a friendly "out of credits" error. Full evidence and measurements in [`docs/provider-decision.md`](docs/provider-decision.md).
 
 ## Local setup
 
@@ -76,6 +75,7 @@ npm run dev                  # http://localhost:3000
 - **Model quality varies** with prompt specificity — descriptive prompts ("low-poly, metal corners, stylized") beat one-word ones.
 - **GLB only** — no OBJ/USDZ export (GLB is the web-native choice; convert downstream if needed).
 - **Session-only results** — refreshing the page clears the model; no history or sharing (deliberately no database).
+- **Generation needs operator credits** — the Tripo key must hold API credits (20 ≈ $0.20 per textured model; no signup bonus as of Sep 2026). If credits run out, users see a friendly "out of credits" state instead of a broken app.
 - **Provider-side queue/rate limits** apply (HTTP 429 handled with a friendly message).
 - **Output URL expiry (~5 min)** is handled server-side — models stream through the app, not hot-linked.
 
