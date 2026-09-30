@@ -29,19 +29,33 @@ const FAILURE_MESSAGES: Record<string, string> = {
   unknown: "The generator lost track of this task. Please try again.",
 };
 
-function getApiKey(): string {
-  const key = process.env.TRIPO_API_KEY;
-  if (!key) {
-    console.error("[tripo] TRIPO_API_KEY is not set");
-    throw new ProviderError(
-      "unavailable",
-      "3D generation is temporarily unavailable. Please try again later.",
-    );
-  }
-  return key;
+interface ResolvedApiKey {
+  key: string;
+  /** Where the key came from — determines error wording when upstream rejects it. */
+  source: "request" | "env";
 }
 
-function mapHttpError(status: number, code: number | undefined, message?: string): ProviderError {
+function resolveApiKey(requestKey?: string): ResolvedApiKey {
+  if (requestKey !== undefined && requestKey.length > 0) {
+    return { key: requestKey, source: "request" };
+  }
+  const envKey = process.env.TRIPO_API_KEY;
+  if (envKey !== undefined && envKey.length > 0) {
+    return { key: envKey, source: "env" };
+  }
+  console.error("[tripo] no API key: request had none and TRIPO_API_KEY is not set");
+  throw new ProviderError(
+    "missing_key",
+    "No API key available. Enter your Tripo API key to generate — get one at platform.tripo3d.ai.",
+  );
+}
+
+function mapHttpError(
+  status: number,
+  code: number | undefined,
+  message: string | undefined,
+  keySource: ResolvedApiKey["source"],
+): ProviderError {
   if (status === 429 || code === 1007 || code === 2000) {
     return new ProviderError(
       "rate_limited",
@@ -55,7 +69,20 @@ function mapHttpError(status: number, code: number | undefined, message?: string
       "The generator is out of credits. Please try again later.",
     );
   }
-  if (status === 401 || status === 403) {
+  if (status === 401) {
+    // A visitor's own key was rejected — say so. The server's key failing is just unavailable.
+    if (keySource === "request") {
+      return new ProviderError(
+        "invalid_key",
+        "That API key was rejected. Check it and try again.",
+      );
+    }
+    return new ProviderError(
+      "unavailable",
+      "3D generation is temporarily unavailable. Please try again later.",
+    );
+  }
+  if (status === 403) {
     return new ProviderError(
       "unavailable",
       "3D generation is temporarily unavailable. Please try again later.",
@@ -67,9 +94,13 @@ function mapHttpError(status: number, code: number | undefined, message?: string
   );
 }
 
-async function tripoRequest(path: string, init?: RequestInit): Promise<unknown> {
+async function tripoRequest(
+  auth: ResolvedApiKey,
+  path: string,
+  init?: RequestInit,
+): Promise<unknown> {
   // Resolve credentials before the try so a config error isn't masked as a network error.
-  const authorization = `Bearer ${getApiKey()}`;
+  const authorization = `Bearer ${auth.key}`;
 
   let res: Response;
   try {
@@ -94,12 +125,12 @@ async function tripoRequest(path: string, init?: RequestInit): Promise<unknown> 
   try {
     envelope = (await res.json()) as TripoEnvelope;
   } catch {
-    if (!res.ok) throw mapHttpError(res.status, undefined);
+    if (!res.ok) throw mapHttpError(res.status, undefined, undefined, auth.source);
     throw new ProviderError("bad_response", "The 3D generator returned an unexpected response.");
   }
 
   if (!res.ok || (envelope.code !== undefined && envelope.code !== 0)) {
-    throw mapHttpError(res.status, envelope.code, envelope.message);
+    throw mapHttpError(res.status, envelope.code, envelope.message, auth.source);
   }
   return envelope.data;
 }
@@ -107,8 +138,8 @@ async function tripoRequest(path: string, init?: RequestInit): Promise<unknown> 
 export const tripoProvider: TextTo3DProvider = {
   name: "tripo",
 
-  async createGeneration(prompt: string): Promise<CreatedGeneration> {
-    const data = (await tripoRequest("/generation/text-to-model", {
+  async createGeneration(prompt: string, apiKey?: string): Promise<CreatedGeneration> {
+    const data = (await tripoRequest(resolveApiKey(apiKey), "/generation/text-to-model", {
       method: "POST",
       body: JSON.stringify({
         prompt,
@@ -127,8 +158,10 @@ export const tripoProvider: TextTo3DProvider = {
     return { taskId, format: "glb" };
   },
 
-  async getStatus(taskId: string): Promise<GenerationTask> {
-    const data = (await tripoRequest(`/tasks/${taskId}`)) as TripoTaskData | null;
+  async getStatus(taskId: string, apiKey?: string): Promise<GenerationTask> {
+    const data = (await tripoRequest(resolveApiKey(apiKey), `/tasks/${taskId}`)) as
+      | TripoTaskData
+      | null;
     if (!data || typeof data.status !== "string") {
       throw new ProviderError("bad_response", "The 3D generator returned an unexpected response.");
     }

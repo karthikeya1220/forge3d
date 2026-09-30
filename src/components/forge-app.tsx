@@ -26,6 +26,7 @@ function GitHubMark() {
 
 export function ForgeApp() {
   const [prompt, setPrompt] = useState("");
+  const [apiKey, setApiKey] = useState("");
   const [resetSignal, setResetSignal] = useState(0);
   const { state, isGenerating, downloadName, submit, retry, reportLoadError } =
     useModelGeneration();
@@ -33,8 +34,8 @@ export function ForgeApp() {
   const modelUrl = state.phase === "success" ? state.modelUrl : null;
 
   const handleSubmit = useCallback(() => {
-    void submit(prompt);
-  }, [prompt, submit]);
+    void submit(prompt, apiKey);
+  }, [prompt, apiKey, submit]);
 
   const handleClear = useCallback(() => {
     setPrompt("");
@@ -71,6 +72,8 @@ export function ForgeApp() {
         <PromptPanel
           value={prompt}
           onChange={setPrompt}
+          apiKey={apiKey}
+          onApiKeyChange={setApiKey}
           onSubmit={handleSubmit}
           onClear={handleClear}
           disabled={isGenerating}
@@ -115,7 +118,7 @@ export function ForgeApp() {
       </main>
 
       <footer className="flex h-11 shrink-0 items-center justify-between gap-4 border-t border-hairline bg-panel px-4">
-        <GenerationStatus state={state} onRetry={() => void retry()} />
+        <GenerationStatus state={state} onRetry={() => void retry(apiKey)} />
         <DownloadButton href={modelUrl} filename={downloadName} />
       </footer>
 

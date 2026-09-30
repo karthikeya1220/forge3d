@@ -21,8 +21,10 @@ export interface UseModelGeneration {
   isGenerating: boolean;
   /** Filename for the current model, e.g. forge3d-treasure-chest.glb */
   downloadName: string | null;
-  submit: (prompt: string) => Promise<void>;
-  retry: () => Promise<void>;
+  /** `apiKey` is the visitor's own Tripo key (bring-your-own-key); omit to use the server's. */
+  submit: (prompt: string, apiKey?: string) => Promise<void>;
+  /** Re-runs the last prompt; pass the current key input so a fixed key is picked up. */
+  retry: (apiKey?: string) => Promise<void>;
   reset: () => void;
   /** Called when the viewer fails to load the generated model. */
   reportLoadError: () => void;
@@ -56,8 +58,10 @@ export function useModelGeneration(): UseModelGeneration {
     prompt: string,
     runId: number,
     startedAt: number,
+    apiKey: string,
   ): Promise<void> {
     let consecutiveFailures = 0;
+    const headers = apiKey ? { "x-api-key": apiKey } : undefined;
 
     for (;;) {
       if (runIdRef.current !== runId) return;
@@ -72,7 +76,7 @@ export function useModelGeneration(): UseModelGeneration {
 
       let res: Response;
       try {
-        res = await fetch(`/api/generate/${taskId}`, { cache: "no-store" });
+        res = await fetch(`/api/generate/${taskId}`, { cache: "no-store", headers });
       } catch {
         consecutiveFailures += 1;
         if (consecutiveFailures >= MAX_CONSECUTIVE_POLL_FAILURES) {
@@ -123,10 +127,11 @@ export function useModelGeneration(): UseModelGeneration {
     }
   }
 
-  async function submit(prompt: string): Promise<void> {
+  async function submit(prompt: string, apiKey?: string): Promise<void> {
     const trimmed = prompt.trim();
     if (trimmed.length === 0) return;
 
+    const key = (apiKey ?? "").trim();
     const runId = ++runIdRef.current;
     revokeModel();
     lastPromptRef.current = trimmed;
@@ -136,7 +141,10 @@ export function useModelGeneration(): UseModelGeneration {
     try {
       res = await fetch("/api/generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(key ? { "x-api-key": key } : {}),
+        },
         body: JSON.stringify({ prompt: trimmed }),
       });
     } catch {
@@ -166,12 +174,12 @@ export function useModelGeneration(): UseModelGeneration {
       return;
     }
 
-    await poll(data.taskId, trimmed, runId, Date.now());
+    await poll(data.taskId, trimmed, runId, Date.now(), key);
   }
 
-  async function retry(): Promise<void> {
+  async function retry(apiKey?: string): Promise<void> {
     const prompt = lastPromptRef.current;
-    if (prompt) await submit(prompt);
+    if (prompt) await submit(prompt, apiKey);
   }
 
   function reset(): void {

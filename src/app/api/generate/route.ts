@@ -1,4 +1,4 @@
-import { errorResponse, jsonError } from "@/lib/3d-generation/http";
+import { errorResponse, jsonError, readRequestApiKey } from "@/lib/3d-generation/http";
 import { getProvider, validatePrompt } from "@/lib/3d-generation";
 
 export async function POST(request: Request) {
@@ -14,8 +14,13 @@ export async function POST(request: Request) {
     return jsonError(400, "invalid_prompt", parsed.message);
   }
 
+  const key = readRequestApiKey(request);
+  if (!key.ok) {
+    return jsonError(400, "invalid_api_key", key.message);
+  }
+
   try {
-    const created = await getProvider().createGeneration(parsed.prompt);
+    const created = await getProvider().createGeneration(parsed.prompt, key.apiKey);
     return Response.json({
       success: true,
       taskId: created.taskId,

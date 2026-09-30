@@ -5,6 +5,7 @@
 ## Features
 
 - **Prompt → 3D in one click** — async generation with submit/poll/stream; no long-lived requests, works on mobile
+- **Bring-your-own-key** — paste your own Tripo key to generate with your credits; it stays in your tab, is never stored server-side, and leaves no trace when you refresh
 - **Interactive WebGL viewer** — rotate, zoom, pan, reset-to-fit camera, studio lighting, contact shadows
 - **Auto-normalization** — every model is bounding-box centered, grounded, and scaled to fit the scene (no tiny/huge surprises)
 - **Download** — one click saves `forge3d-<prompt-slug>.glb`
@@ -60,8 +61,22 @@ npm run dev                  # http://localhost:3000
 
 | Name | Required | Where | Purpose |
 |---|---|---|---|
-| `TRIPO_API_KEY` | yes | server only | Tripo API bearer key ([create one](https://platform.tripo3d.ai)) |
+| `TRIPO_API_KEY` | yes* | server only | Tripo API bearer key ([create one](https://platform.tripo3d.ai)) — *optional if every visitor brings their own key |
 | `AI_PROVIDER` | no | server only | Provider key, defaults to `tripo` |
+
+### Bring-your-own-key (BYOK)
+
+Visitors can paste their own Tripo key (`tsk_…`) into the **API key** field in the
+prompt panel and generate with their own credits:
+
+- The key lives in React state only — cleared on refresh, never written to logs,
+  cookies, storage, or the server. It's sent as an `x-api-key` header with each
+  generate/poll request and used only for that request.
+- The server validates its shape (fails fast with a clear message), forwards it
+  upstream, and falls back to `TRIPO_API_KEY` **only when no header is present**.
+- A key Tripo rejects returns `401 invalid_key` ("That API key was rejected…");
+  a missing key everywhere returns `401 missing_key` telling the visitor how to
+  get one. Keys are never echoed back in any response.
 
 ## Deployment (Vercel)
 
@@ -78,7 +93,7 @@ npm run dev                  # http://localhost:3000
 - **Model quality varies** with prompt specificity — descriptive prompts ("low-poly, metal corners, stylized") beat one-word ones.
 - **GLB only** — no OBJ/USDZ export (GLB is the web-native choice; convert downstream if needed).
 - **Session-only results** — refreshing the page clears the model; no history or sharing (deliberately no database).
-- **Generation needs operator credits** — the Tripo key must hold API credits (20 ≈ $0.20 per textured model; no signup bonus as of Sep 2026). If credits run out, users see a friendly "out of credits" state instead of a broken app.
+- **Generation needs credits somewhere** — the server key must hold API credits (20 ≈ $0.20 per textured model; no signup bonus as of Sep 2026), or visitors can paste their own key (BYOK). Otherwise users see a friendly "out of credits" state instead of a broken app.
 - **Provider-side queue/rate limits** apply (HTTP 429 handled with a friendly message).
 - **Output URL expiry (~5 min)** is handled server-side — models stream through the app, not hot-linked.
 

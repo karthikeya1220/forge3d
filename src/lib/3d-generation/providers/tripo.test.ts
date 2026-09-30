@@ -73,11 +73,53 @@ describe("tripoProvider.createGeneration", () => {
     expect((error as ProviderError).message).toMatch(/out of credits/i);
   });
 
-  it("fails cleanly when the API key is missing", async () => {
+  it("fails with missing_key when neither a request key nor env key exists", async () => {
     delete process.env.TRIPO_API_KEY;
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const error = await tripoProvider.createGeneration("a cat").catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ProviderError);
+    expect((error as ProviderError).code).toBe("missing_key");
+    expect((error as ProviderError).statusCode).toBe(401);
+    consoleSpy.mockRestore();
+  });
+
+  it("uses a visitor-provided key over the env key", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({ code: 0, data: { task_id: "task_visitor" } }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await tripoProvider.createGeneration("a cat", "tsk_visitor_key_1234567890");
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = init.headers as Record<string, string>;
+    expect(headers.Authorization).toBe("Bearer tsk_visitor_key_1234567890");
+  });
+
+  it("maps a rejected visitor key to invalid_key with a check-your-key message", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse({ code: 2, message: "Invalid API key" }, 401)),
+    );
+
+    const error = await tripoProvider
+      .createGeneration("a cat", "tsk_bad_key_1234567890")
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ProviderError);
+    expect((error as ProviderError).code).toBe("invalid_key");
+    expect((error as ProviderError).message).toMatch(/check it/i);
+  });
+
+  it("maps a rejected server key to generic unavailable (no confusing key message)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse({ code: 2, message: "Invalid API key" }, 401)),
+    );
+
     const error = await tripoProvider.createGeneration("a cat").catch((e: unknown) => e);
     expect(error).toBeInstanceOf(ProviderError);
     expect((error as ProviderError).code).toBe("unavailable");
+    expect((error as ProviderError).message).not.toMatch(/check it/i);
   });
 
   it("rejects a response without a task id", async () => {

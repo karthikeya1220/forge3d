@@ -20,8 +20,13 @@ function context(taskId: string) {
   return { params: Promise.resolve({ taskId }) } as Parameters<typeof GET>[1];
 }
 
-function get(taskId: string): Promise<Response> {
-  return GET(new Request(`http://localhost/api/generate/${taskId}`), context(taskId));
+function get(taskId: string, apiKey?: string): Promise<Response> {
+  return GET(
+    new Request(`http://localhost/api/generate/${taskId}`, {
+      headers: apiKey ? { "x-api-key": apiKey } : {},
+    }),
+    context(taskId),
+  );
 }
 
 beforeEach(() => {
@@ -87,6 +92,30 @@ describe("GET /api/generate/[taskId]", () => {
     expect(res.headers.get("cache-control")).toBe("no-store");
     expect(new Uint8Array(await res.arrayBuffer())).toEqual(bytes);
     expect(provider.openModelStream).toHaveBeenCalledWith("https://cdn.example.com/model.glb");
+  });
+
+  it("forwards the visitor's key to the provider on polls", async () => {
+    vi.mocked(provider.getStatus).mockResolvedValue({
+      taskId: "task_abc",
+      phase: "generating",
+      progress: 10,
+    });
+
+    const res = await get("task_abc", "tsk_visitor_key_1234567890");
+    expect(res.status).toBe(200);
+    expect(provider.getStatus).toHaveBeenCalledWith(
+      "task_abc",
+      "tsk_visitor_key_1234567890",
+    );
+  });
+
+  it("rejects a malformed visitor key with 400 and never echoes it", async () => {
+    const res = await get("task_abc", "garbage-key");
+    expect(res.status).toBe(400);
+    const text = JSON.stringify(await res.json());
+    expect(text).toContain("invalid_api_key");
+    expect(text).not.toContain("garbage-key");
+    expect(provider.getStatus).not.toHaveBeenCalled();
   });
 
   it("maps provider errors to safe JSON error responses", async () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { Eraser, Sparkles } from "lucide-react";
+import { Eraser, KeyRound, Sparkles } from "lucide-react";
 import { EXAMPLE_PROMPTS } from "./example-prompts";
 import { PROMPT_MAX_LENGTH } from "@/lib/3d-generation/validation";
 import { cn } from "@/lib/utils";
@@ -8,6 +8,9 @@ import { cn } from "@/lib/utils";
 export interface PromptPanelProps {
   value: string;
   onChange: (value: string) => void;
+  /** Bring-your-own-key: visitor's Tripo key, kept in memory for this tab only. */
+  apiKey: string;
+  onApiKeyChange: (value: string) => void;
   onSubmit: () => void;
   onClear: () => void;
   disabled: boolean;
@@ -16,6 +19,8 @@ export interface PromptPanelProps {
 export function PromptPanel({
   value,
   onChange,
+  apiKey,
+  onApiKeyChange,
   onSubmit,
   onClear,
   disabled,
@@ -117,6 +122,40 @@ export function PromptPanel({
             </li>
           ))}
         </ul>
+      </div>
+
+      <div className="flex flex-col gap-2 border-t border-hairline pt-5">
+        <label
+          htmlFor="api-key"
+          className="flex items-center gap-1.5 text-sm font-medium text-paper"
+        >
+          <KeyRound className="h-3.5 w-3.5 text-faint" aria-hidden />
+          API key
+          <span className="font-normal text-faint">(optional)</span>
+        </label>
+        <input
+          id="api-key"
+          type="password"
+          value={apiKey}
+          onChange={(event) => onApiKeyChange(event.target.value)}
+          maxLength={256}
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="tsk_… use your own Tripo key"
+          className="w-full rounded-md border border-hairline-strong bg-viewport px-3 py-2 font-mono text-sm text-paper placeholder:text-faint focus:border-amber/60 focus:outline-none"
+        />
+        <p className="text-[11px] leading-relaxed text-faint">
+          Kept in this tab only — sent with your request, never stored. Leave
+          empty to use the site&apos;s key.{" "}
+          <a
+            href="https://platform.tripo3d.ai"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-muted underline underline-offset-2 transition-colors hover:text-paper"
+          >
+            Get one free
+          </a>
+        </p>
       </div>
     </section>
   );

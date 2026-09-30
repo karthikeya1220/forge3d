@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { PROMPT_MAX_LENGTH, isValidTaskId, validatePrompt } from "./validation";
+import {
+  PROMPT_MAX_LENGTH,
+  isValidTaskId,
+  validateApiKey,
+  validatePrompt,
+} from "./validation";
 
 describe("validatePrompt", () => {
   it("accepts a normal prompt and trims it", () => {
@@ -51,5 +56,39 @@ describe("isValidTaskId", () => {
     ]) {
       expect(isValidTaskId(value)).toBe(false);
     }
+  });
+});
+
+describe("validateApiKey", () => {
+  it("accepts a well-formed Tripo key and trims it", () => {
+    const result = validateApiKey("  tsk_3FM3lhHLebnkmPSt1XaY853MD_DKdkRMlnVa83wlv1q  ");
+    expect(result).toEqual({
+      ok: true,
+      apiKey: "tsk_3FM3lhHLebnkmPSt1XaY853MD_DKdkRMlnVa83wlv1q",
+    });
+  });
+
+  it("rejects non-string values", () => {
+    expect(validateApiKey(123).ok).toBe(false);
+    expect(validateApiKey(null).ok).toBe(false);
+    expect(validateApiKey(undefined).ok).toBe(false);
+  });
+
+  it("rejects empty or whitespace-only keys", () => {
+    expect(validateApiKey("").ok).toBe(false);
+    expect(validateApiKey("   ").ok).toBe(false);
+  });
+
+  it("rejects keys that are not Tripo-shaped", () => {
+    const wrongPrefix = validateApiKey("sk_live_something");
+    expect(wrongPrefix.ok).toBe(false);
+    if (!wrongPrefix.ok) expect(wrongPrefix.message).toMatch(/tsk_/);
+
+    expect(validateApiKey("tsk_has spaces here").ok).toBe(false);
+    expect(validateApiKey("tsk_tooshort").ok).toBe(false);
+  });
+
+  it("rejects keys over the max length", () => {
+    expect(validateApiKey(`tsk_${"a".repeat(300)}`).ok).toBe(false);
   });
 });

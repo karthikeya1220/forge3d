@@ -61,7 +61,53 @@ describe("POST /api/generate", () => {
       taskId: "task_abc123",
       format: "glb",
     });
-    expect(provider.createGeneration).toHaveBeenCalledWith("a treasure chest");
+    expect(provider.createGeneration).toHaveBeenCalledWith(
+      "a treasure chest",
+      undefined,
+    );
+  });
+
+  it("forwards a visitor's x-api-key header to the provider", async () => {
+    vi.mocked(provider.createGeneration).mockResolvedValue({
+      taskId: "task_abc123",
+      format: "glb",
+    });
+
+    const res = await POST(
+      new Request("http://localhost/api/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": "tsk_visitor_key_1234567890",
+        },
+        body: JSON.stringify({ prompt: "a cat" }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(provider.createGeneration).toHaveBeenCalledWith(
+      "a cat",
+      "tsk_visitor_key_1234567890",
+    );
+  });
+
+  it("rejects a malformed visitor key with 400 and never echoes it", async () => {
+    const res = await POST(
+      new Request("http://localhost/api/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": "not-a-tripo-key",
+        },
+        body: JSON.stringify({ prompt: "a cat" }),
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    const text = JSON.stringify(await res.json());
+    expect(text).toContain("invalid_api_key");
+    expect(text).not.toContain("not-a-tripo-key");
+    expect(provider.createGeneration).not.toHaveBeenCalled();
   });
 
   it("maps provider rate limiting to HTTP 429", async () => {

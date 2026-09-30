@@ -1,8 +1,8 @@
-import { errorResponse } from "@/lib/3d-generation/http";
+import { errorResponse, jsonError, readRequestApiKey } from "@/lib/3d-generation/http";
 import { getProvider, isValidTaskId } from "@/lib/3d-generation";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: RouteContext<"/api/generate/[taskId]">,
 ) {
   const { taskId } = await context.params;
@@ -14,8 +14,13 @@ export async function GET(
     );
   }
 
+  const key = readRequestApiKey(request);
+  if (!key.ok) {
+    return jsonError(400, "invalid_api_key", key.message);
+  }
+
   try {
-    const task = await getProvider().getStatus(taskId);
+    const task = await getProvider().getStatus(taskId, key.apiKey);
 
     if (task.phase === "generating") {
       return Response.json(
