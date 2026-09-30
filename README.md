@@ -80,12 +80,13 @@ prompt panel and generate with their own credits:
 
 ## Deployment (Vercel)
 
-**Live:** https://forge3d-ms15zm3vg-darshankarthik05-gmailcoms-projects.vercel.app
+**Live:** https://forge3d-app.vercel.app
 
 1. Push the repo to GitHub and import it at [vercel.com/new](https://vercel.com/new) (framework auto-detected: Next.js).
 2. Add env var `TRIPO_API_KEY` (Environment → Production & Preview).
 3. **Settings → Deployment Protection → disable Vercel Authentication** (otherwise every visitor is bounced to a login wall).
-4. Deploy. No persistent workers, database, or config beyond the key.
+4. **Settings → Domains → add a stable `*.vercel.app` alias** (e.g. `forge3d-app.vercel.app`) — per-deployment URLs change on every push.
+5. Deploy. No persistent workers, database, or config beyond the key.
 
 ## Limitations
 
